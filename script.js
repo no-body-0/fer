@@ -69,7 +69,7 @@ async function runCode() {
     inputs += value + "\n";
   }
 
-  const res = await fetch("https://your-backend-url.onrender.com/run", {
+  const res = await fetch("https://ber-w16y.onrender.com/run", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ code: userCode, stdin: inputs.trim() })
@@ -81,7 +81,7 @@ async function runCode() {
 
 async function shareCode() {
   const userCode = editor.getValue();
-  const res = await fetch("https://your-backend-url.onrender.com/share", {
+  const res = await fetch("https://https://ber-w16y.onrender.com/share", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ code: userCode, language: "python" })
