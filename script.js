@@ -1,119 +1,112 @@
-// --- Initialize CodeMirror ---
+const backendURL = "https://backend-repo-j0ed.onrender.com";
 const editor = CodeMirror.fromTextArea(document.getElementById("editor"), {
   mode: "python",
-  theme: "dracula",
+  theme: "default",
   lineNumbers: true,
-  autoCloseBrackets: true
 });
 
-document.getElementById("language").addEventListener("change", e => {
-  const lang = e.target.value;
-  const modes = { python: "python", c: "text/x-csrc", sql: "text/x-sql" };
-  editor.setOption("mode", modes[lang] || "python");
-});
-
-document.getElementById("runBtn").onclick = runCode;
-document.getElementById("shareBtn").onclick = shareCode;
-
+const runBtn = document.getElementById("runBtn");
+const shareBtn = document.getElementById("shareBtn");
 const output = document.getElementById("output");
-let inputResolver = null; // promise resolver for input()
+const languageSelect = document.getElementById("language");
 
-// --- Simulate interactive input in output box ---
-output.addEventListener("keydown", e => {
-  if (inputResolver && e.key === "Enter") {
-    e.preventDefault();
-    const inputLine = e.target.querySelector(".input-line");
-    const userInput = inputLine.textContent.trim();
-    inputLine.removeAttribute("contenteditable");
-    output.innerHTML += "\n";
-    removeBlinker();
-    inputResolver(userInput);
-    inputResolver = null;
-  }
-});
+let waitingForInput = false;
+let currentResolve = null;
+let accumulatedInput = [];
 
-function askInput(promptText) {
-  return new Promise(resolve => {
-    output.innerHTML += promptText;
-    const span = document.createElement("span");
-    span.className = "input-line";
-    span.contentEditable = true;
-    output.appendChild(span);
-    addBlinker();
-    span.focus();
-    inputResolver = resolve;
+// -----------------------------
+// Helper functions
+// -----------------------------
+function appendOutput(text) {
+  output.textContent += text;
+  output.scrollTop = output.scrollHeight;
+}
+
+function setBlinkingCursor(active) {
+  if (active) output.classList.add("blink");
+  else output.classList.remove("blink");
+}
+
+function askForInput(promptText) {
+  appendOutput(promptText);
+  setBlinkingCursor(true);
+  waitingForInput = true;
+
+  return new Promise((resolve) => {
+    currentResolve = resolve;
   });
 }
 
-// --- Run Code Function ---
-async function runCode() {
-  output.innerHTML = ">>> Running your code...\n";
-  removeBlinker();
-
-  const lang = document.getElementById("language").value;
-  const userCode = editor.getValue();
-
-  const matches = [...userCode.matchAll(/input\s*\((.*?)\)/g)];
-  const inputs = [];
-
-  for (let i = 0; i < matches.length; i++) {
-    const promptText = matches[i][1].replace(/['"]/g, "") || "";
-    const val = await askInput(promptText);
-    inputs.push(val);
+output.addEventListener("keydown", (e) => {
+  if (waitingForInput) {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      const lines = output.textContent.split("\n");
+      const inputValue = lines[lines.length - 1].split(": ").pop().trim();
+      appendOutput("\n");
+      waitingForInput = false;
+      setBlinkingCursor(false);
+      accumulatedInput.push(inputValue);
+      currentResolve(inputValue);
+    }
   }
+});
 
-  const formData = new FormData();
-  formData.append("language", lang);
-  formData.append("stdin", inputs.join("\n"));
-  formData.append("code", userCode);
+// -----------------------------
+// Main run handler
+// -----------------------------
+runBtn.addEventListener("click", async () => {
+  const code = editor.getValue();
+  const language = languageSelect.value;
 
-  addBlinker();
+  output.textContent = ">>> Running your code...\n";
+  accumulatedInput = [];
 
+  await executeCode(code, language);
+});
+
+// -----------------------------
+// Recursive executor
+// -----------------------------
+async function executeCode(code, language, manualInput = "") {
   try {
-    const res = await fetch("https://backend-repo-j0ed.onrender.com/run", {
+    const res = await fetch(`${backendURL}/run`, {
       method: "POST",
-      body: formData
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        code,
+        language,
+        input: manualInput,
+      }),
     });
-    const result = await res.json();
-    showOutput(result.output || result.message || "No output.");
-  } catch {
-    showOutput("Error: Unable to connect to backend.");
+
+    const data = await res.json();
+
+    if (data.prompt) {
+      // Python asking for input
+      const userValue = await askForInput(data.prompt);
+      await executeCode(code, language, userValue);
+    } else {
+      appendOutput(data.output || "\nNo output.");
+    }
+  } catch (err) {
+    appendOutput("\n⚠️ Error: " + err.message);
   }
 }
 
-// --- Output Display ---
-function showOutput(text) {
-  removeBlinker();
-  output.innerHTML += text + "\n";
-  addBlinker();
-}
-
-// --- Share Code Function ---
-async function shareCode() {
-  const lang = document.getElementById("language").value;
-  const userCode = editor.getValue();
-
-  const res = await fetch("https://backend-repo-j0ed.onrender.com/share", {
+// -----------------------------
+// Share button
+// -----------------------------
+shareBtn.addEventListener("click", async () => {
+  const code = editor.getValue();
+  const res = await fetch(`${backendURL}/share`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ code: userCode, language: lang })
+    body: JSON.stringify({ code }),
   });
-  const result = await res.json();
 
-  navigator.clipboard.writeText(result.url);
-  alert("✅ Link copied!\n" + result.url);
-}
-
-// --- Blinker Management ---
-function addBlinker() {
-  if (!document.querySelector(".blink")) {
-    const blinker = document.createElement("span");
-    blinker.className = "blink";
-    output.appendChild(blinker);
-  }
-}
-
-function removeBlinker() {
-  const b = document.querySelector(".blink");
-  if (b) b.remove();
-}
+  const data = await res.json();
+  const shareURL = `${window.location.origin}?id=${data.id}`;
+  navigator.clipboard.writeText(shareURL);
+  alert("🔗 Link copied: " + shareURL);
+});
