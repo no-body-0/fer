@@ -16,20 +16,50 @@ document.getElementById("runBtn").onclick = runCode;
 document.getElementById("shareBtn").onclick = shareCode;
 
 const output = document.getElementById("output");
+let inputResolver = null; // promise resolver for input()
+
+// --- Simulate interactive input in output box ---
+output.addEventListener("keydown", e => {
+  if (inputResolver && e.key === "Enter") {
+    e.preventDefault();
+    const inputLine = e.target.querySelector(".input-line");
+    const userInput = inputLine.textContent.trim();
+    inputLine.removeAttribute("contenteditable");
+    output.innerHTML += "\n";
+    removeBlinker();
+    inputResolver(userInput);
+    inputResolver = null;
+  }
+});
+
+function askInput(promptText) {
+  return new Promise(resolve => {
+    output.innerHTML += promptText;
+    const span = document.createElement("span");
+    span.className = "input-line";
+    span.contentEditable = true;
+    output.appendChild(span);
+    addBlinker();
+    span.focus();
+    inputResolver = resolve;
+  });
+}
 
 // --- Run Code Function ---
 async function runCode() {
-  output.textContent = ""; // clear
+  output.innerHTML = ">>> Running your code...\n";
+  removeBlinker();
+
   const lang = document.getElementById("language").value;
   const userCode = editor.getValue();
 
-  // Detect input() calls and handle them interactively
-  const inputs = [];
   const matches = [...userCode.matchAll(/input\s*\((.*?)\)/g)];
+  const inputs = [];
+
   for (let i = 0; i < matches.length; i++) {
-    const promptText = matches[i][1].replace(/['"]/g, "") || `Input ${i + 1}: `;
-    const ans = prompt(promptText);
-    inputs.push(ans);
+    const promptText = matches[i][1].replace(/['"]/g, "") || "";
+    const val = await askInput(promptText);
+    inputs.push(val);
   }
 
   const formData = new FormData();
@@ -37,8 +67,6 @@ async function runCode() {
   formData.append("stdin", inputs.join("\n"));
   formData.append("code", userCode);
 
-  // Display typing animation + blinking cursor
-  output.innerHTML = ">>> Running your code...\n";
   addBlinker();
 
   try {
@@ -47,32 +75,17 @@ async function runCode() {
       body: formData
     });
     const result = await res.json();
-    const text = result.output || result.message || "No output.";
-    showOutputLikeInterpreter(text);
-  } catch (err) {
-    showOutputLikeInterpreter("Error: Unable to connect to backend.");
+    showOutput(result.output || result.message || "No output.");
+  } catch {
+    showOutput("Error: Unable to connect to backend.");
   }
 }
 
-// --- Output Animation like Python Interpreter ---
-function showOutputLikeInterpreter(text) {
-  output.innerHTML = "";
-  let i = 0;
-  function type() {
-    if (i < text.length) {
-      output.textContent += text[i++];
-      setTimeout(type, 10);
-    } else {
-      addBlinker();
-    }
-  }
-  type();
-}
-
-function addBlinker() {
-  const blinker = document.createElement("span");
-  blinker.className = "blink";
-  output.appendChild(blinker);
+// --- Output Display ---
+function showOutput(text) {
+  removeBlinker();
+  output.innerHTML += text + "\n";
+  addBlinker();
 }
 
 // --- Share Code Function ---
@@ -89,4 +102,18 @@ async function shareCode() {
 
   navigator.clipboard.writeText(result.url);
   alert("✅ Link copied!\n" + result.url);
+}
+
+// --- Blinker Management ---
+function addBlinker() {
+  if (!document.querySelector(".blink")) {
+    const blinker = document.createElement("span");
+    blinker.className = "blink";
+    output.appendChild(blinker);
+  }
+}
+
+function removeBlinker() {
+  const b = document.querySelector(".blink");
+  if (b) b.remove();
 }
