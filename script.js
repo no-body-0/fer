@@ -1,112 +1,92 @@
-const backendURL = "https://backend-repo-j0ed.onrender.com";
 const editor = CodeMirror.fromTextArea(document.getElementById("editor"), {
   mode: "python",
-  theme: "default",
+  theme: "dracula",
   lineNumbers: true,
+  autoCloseBrackets: true
 });
 
-const runBtn = document.getElementById("runBtn");
-const shareBtn = document.getElementById("shareBtn");
-const output = document.getElementById("output");
-const languageSelect = document.getElementById("language");
+document.getElementById("runBtn").onclick = runCode;
+document.getElementById("shareBtn").onclick = shareCode;
 
-let waitingForInput = false;
-let currentResolve = null;
-let accumulatedInput = [];
+let outputBox = document.getElementById("output");
+let inputBuffer = "";
+let awaitingInput = false;
+let inputResolver = null;
 
-// -----------------------------
-// Helper functions
-// -----------------------------
 function appendOutput(text) {
-  output.textContent += text;
-  output.scrollTop = output.scrollHeight;
+  outputBox.innerHTML += text.replace(/\n/g, "<br>");
+  outputBox.scrollTop = outputBox.scrollHeight;
 }
 
-function setBlinkingCursor(active) {
-  if (active) output.classList.add("blink");
-  else output.classList.remove("blink");
+function addBlinker() {
+  const blink = document.createElement("span");
+  blink.classList.add("blinker");
+  blink.textContent = "█";
+  outputBox.appendChild(blink);
 }
 
-function askForInput(promptText) {
-  appendOutput(promptText);
-  setBlinkingCursor(true);
-  waitingForInput = true;
-
-  return new Promise((resolve) => {
-    currentResolve = resolve;
-  });
-}
-
-output.addEventListener("keydown", (e) => {
-  if (waitingForInput) {
+outputBox.addEventListener("click", () => outputBox.focus());
+document.addEventListener("keydown", (e) => {
+  if (awaitingInput) {
+    const blinker = document.querySelector(".blinker");
     if (e.key === "Enter") {
       e.preventDefault();
-      const lines = output.textContent.split("\n");
-      const inputValue = lines[lines.length - 1].split(": ").pop().trim();
-      appendOutput("\n");
-      waitingForInput = false;
-      setBlinkingCursor(false);
-      accumulatedInput.push(inputValue);
-      currentResolve(inputValue);
+      appendOutput("<br>");
+      awaitingInput = false;
+      blinker.remove();
+      inputResolver(inputBuffer);
+      inputBuffer = "";
+    } else if (e.key === "Backspace") {
+      e.preventDefault();
+      inputBuffer = inputBuffer.slice(0, -1);
+      blinker.previousSibling?.remove();
+    } else if (e.key.length === 1) {
+      inputBuffer += e.key;
+      const span = document.createElement("span");
+      span.textContent = e.key;
+      outputBox.insertBefore(span, blinker);
     }
   }
 });
 
-// -----------------------------
-// Main run handler
-// -----------------------------
-runBtn.addEventListener("click", async () => {
-  const code = editor.getValue();
-  const language = languageSelect.value;
-
-  output.textContent = ">>> Running your code...\n";
-  accumulatedInput = [];
-
-  await executeCode(code, language);
-});
-
-// -----------------------------
-// Recursive executor
-// -----------------------------
-async function executeCode(code, language, manualInput = "") {
-  try {
-    const res = await fetch(`${backendURL}/run`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        code,
-        language,
-        input: manualInput,
-      }),
-    });
-
-    const data = await res.json();
-
-    if (data.prompt) {
-      // Python asking for input
-      const userValue = await askForInput(data.prompt);
-      await executeCode(code, language, userValue);
-    } else {
-      appendOutput(data.output || "\nNo output.");
-    }
-  } catch (err) {
-    appendOutput("\n⚠️ Error: " + err.message);
-  }
+async function promptInput(promptText) {
+  appendOutput(promptText);
+  addBlinker();
+  awaitingInput = true;
+  return new Promise(resolve => (inputResolver = resolve));
 }
 
-// -----------------------------
-// Share button
-// -----------------------------
-shareBtn.addEventListener("click", async () => {
-  const code = editor.getValue();
-  const res = await fetch(`${backendURL}/share`, {
+async function runCode() {
+  outputBox.innerHTML = ">>> Running your code...<br>";
+  const userCode = editor.getValue();
+  let inputs = "";
+
+  // Detect all input() occurrences
+  const matches = userCode.match(/input\s*\((.*?)\)/g) || [];
+  for (const match of matches) {
+    const promptText = match.match(/input\s*\((.*?)\)/)[1]?.replace(/['"]/g, "") || "";
+    const value = await promptInput(promptText + " ");
+    inputs += value + "\n";
+  }
+
+  const res = await fetch("https://your-backend-url.onrender.com/run", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ code }),
+    body: JSON.stringify({ code: userCode, stdin: inputs.trim() })
   });
 
-  const data = await res.json();
-  const shareURL = `${window.location.origin}?id=${data.id}`;
-  navigator.clipboard.writeText(shareURL);
-  alert("🔗 Link copied: " + shareURL);
-});
+  const result = await res.json();
+  appendOutput(`<br>${result.output}`);
+}
+
+async function shareCode() {
+  const userCode = editor.getValue();
+  const res = await fetch("https://your-backend-url.onrender.com/share", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ code: userCode, language: "python" })
+  });
+  const result = await res.json();
+  navigator.clipboard.writeText(result.url);
+  alert("✅ Link copied!\n" + result.url);
+}
