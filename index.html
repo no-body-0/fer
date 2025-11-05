@@ -3,14 +3,13 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Dev Bhai — Online Python Compiler</title>
+  <title>🐍 Dev Bhai — Live Python Interpreter</title>
 
   <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 
   <!-- CodeMirror -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.5/codemirror.min.css">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.5/theme/dracula.min.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.5/codemirror.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.5/mode/python/python.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.5/mode/clike/clike.min.js"></script>
@@ -18,7 +17,7 @@
 </head>
 <body>
   <header>
-    <h1>🐍 Dev Bhai Compiler</h1>
+    <h1>🐍 Dev Bhai Interpreter</h1>
   </header>
 
   <main>
@@ -33,11 +32,6 @@
     </div>
 
     <textarea id="editor"></textarea>
-
-    <div class="upload-box">
-      <label for="fileUpload">📂 Upload File:</label>
-      <input type="file" id="fileUpload" multiple>
-    </div>
 
     <pre id="output" class="output-box">Output will appear here ...</pre>
   </main>
