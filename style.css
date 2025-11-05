@@ -41,11 +41,6 @@ button:hover { background: #6272a4; }
   font-size: 15px;
 }
 
-.upload-box {
-  text-align: center;
-  margin-top: 1rem;
-}
-
 .output-box {
   background: #1e1f29;
   color: #50fa7b;
@@ -54,4 +49,18 @@ button:hover { background: #6272a4; }
   padding: 1rem;
   min-height: 150px;
   white-space: pre-wrap;
+  font-size: 15px;
+  position: relative;
+}
+
+.blink {
+  display: inline-block;
+  width: 10px;
+  background: #50fa7b;
+  margin-left: 2px;
+  animation: blink 1s step-end infinite;
+}
+
+@keyframes blink {
+  50% { background: transparent; }
 }
