@@ -50,7 +50,12 @@ button:hover { background: #6272a4; }
   min-height: 150px;
   white-space: pre-wrap;
   font-size: 15px;
-  position: relative;
+  outline: none;
+}
+
+.input-line {
+  display: inline;
+  color: #f1fa8c;
 }
 
 .blink {
